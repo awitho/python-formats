@@ -1,0 +1,48 @@
+#include "standard-types.hsl"
+#pragma byteorder(little_endian);
+#pragma maxarray(4096);
+
+struct HFS_CENTRAL_DIRECTORY_END {
+ byte header[4];
+ unsigned short disk_number;
+ unsigned short cdr_disk;
+ unsigned short cdr_num;
+ unsigned short cdr_count;
+ unsigned int size;
+ unsigned int cdr_offset;
+ unsigned short comment_len;
+};
+
+struct HFS_LOCAL_FILE {
+ byte header[4];
+ unsigned short version;
+ unsigned short flag;
+ unsigned short compression;
+ unsigned short mtime;
+ unsigned short mdate;
+ unsigned int crc;
+ unsigned int csize;
+ unsigned int size;
+ unsigned short filename_len;
+ unsigned short extra_len;
+};
+
+struct HFS_CENTRAL_DIRECTORY {
+ byte header[4];
+ unsigned short version_created;
+ unsigned short version_extractable;
+ unsigned short flag;
+ unsigned short compression;
+ unsigned short mtime;
+ unsigned short mdate;
+ unsigned int crc;
+ unsigned int csize;
+ unsigned int size;
+ unsigned short filename_len;
+ unsigned short extra_len;
+ unsigned short comment_len;
+ unsigned short disk_number;
+ unsigned short internal_attr;
+ unsigned int external_attr;
+ unsigned int file_offset;
+};
