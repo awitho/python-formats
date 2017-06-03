@@ -9,7 +9,7 @@ import struct
 from enum import Enum
 from pathlib import Path
 
-from structio import BytesStructIO
+from structio import BytesStructIO, Endianess
 from icc import ICCProfile
 
 
@@ -186,6 +186,9 @@ class PNG:
 		def __str__(self):
 			return "<PNG.Chunk '{}' {}>".format(self.cname, self.flags)
 
+		def __repr__(self):
+			return str(self)
+
 	def __init__(self, path):
 		self.file = Path(path) if not isinstance(path, Path) else path
 		self.fp = self.file.open('rb')
@@ -262,6 +265,9 @@ class Chunks:
 
 		def __str__(self):
 			return str(self.__dict__)
+
+		def __repr__(self):
+			return str(self)
 
 	class IHDR(Base):
 		STRUCT = struct.Struct(">2I5B")
@@ -422,8 +428,9 @@ def main():
 				chunk = next(chunks)
 			except StopIteration:
 				break
-			if chunk.cid == "exIF":
-				print(chunk)
+			print(chunk)
+			if chunk.cname == "tEXt":
+				print(chunk.decode())
 	except AttributeError:
 		return
 	except ParseError as e:
