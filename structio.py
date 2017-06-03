@@ -19,9 +19,11 @@ class StructIO(io.RawIOBase):
 	"""
 	Based on SourceQueryPacket from SourceLib
 	"""
-	@classmethod
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.set_endian(Endianess.BIG)
+
 	def set_endian(self, endian):
-		print("COMPILING STRUCTS")
 		endian = endian.to_struct()
 		self.CHAR = struct.Struct(endian + "c")
 		self.BOOL = struct.Struct(endian + "?")
@@ -53,6 +55,9 @@ class StructIO(io.RawIOBase):
 	def read_short(self):
 		return self.SHORT.unpack(self.read(2))[0]
 
+	def read_ushort(self):
+		return self.USHORT.unpack(self.read(2))[0]
+
 	def read_int(self):
 		return self.INT.unpack(self.read(4))[0]
 
@@ -61,6 +66,9 @@ class StructIO(io.RawIOBase):
 
 	def read_long(self):
 		return self.LONG.unpack(self.read(4))[0]
+
+	def read_ulong(self):
+		return self.ULONG.unpack(self.read(4))[0]
 
 	def read_float(self):
 		return self.FLOAT.unpack(self.read(4))[0]
@@ -71,7 +79,10 @@ class StructIO(io.RawIOBase):
 	def read_string(self):
 		start = self.tell()
 		while True:
-			if self.read(1) == b'\x00':
+			c = self.read(1)
+			if len(c) == 0:
+				raise EOFError()
+			if c == b'\x00':
 				end = self.tell() - 1
 				break
 		return self.getvalue()[start:end]
@@ -99,8 +110,6 @@ class StructIO(io.RawIOBase):
 
 	def write_string(self, data):
 		self.write(data.encode('utf-8') + "\x00")
-
-StructIO.set_endian(Endianess.BIG)
 
 
 class BytesStructIO(io.BytesIO, StructIO):

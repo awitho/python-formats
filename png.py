@@ -399,3 +399,38 @@ UNKNOWN_TAGS = set([
 	'tpNG',
 	'meTa'
 ])
+
+
+def main():
+	import argparse
+	import traceback
+
+	from pathlib import Path
+
+	from lxml import etree
+
+	parser = argparse.ArgumentParser()
+	parser.add_argument("file")
+	args = parser.parse_args()
+
+	PNG.VERIFY = True
+	png = PNG(args.file)
+	try:
+		chunks = png.chunks()
+		while True:
+			try:
+				chunk = next(chunks)
+			except StopIteration:
+				break
+			if chunk.cid == "exIF":
+				print(chunk)
+	except AttributeError:
+		return
+	except ParseError as e:
+		print("Failed on {}: {}".format(file, e.args[0]))
+		return
+	finally:
+		png.close()
+
+if __name__ == '__main__':
+	main()

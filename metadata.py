@@ -26,7 +26,7 @@ def main():
 	ignorables = ["IDAT", "IHDR", "IEND"]
 
 	for file in root.glob("**/*.png"):
-		print(file)
+		# print(file)
 		try:
 			png = PNG(file)
 			chunks = png.chunks()
@@ -35,10 +35,12 @@ def main():
 					chunk = next(chunks)
 				except StopIteration:
 					break
-				if chunk.cname in decodables:
-					decoded = chunk.decode()
-					if decoded.key == "XML:com.adobe.xmp":
-						xmp = etree.fromstring(decoded.text)
+				if chunk.cname == "exIf" or chunk.cname == "eXIf" or chunk.cname == "zxIf" or chunk.cname == "zXIf":
+					print(file)
+				# if chunk.cname in decodables:
+				# 	decoded = chunk.decode()
+				# 	if decoded.key == "XML:com.adobe.xmp":
+				# 		xmp = etree.fromstring(decoded.text)
 		except AttributeError:
 			continue
 		except ParseError as e:
