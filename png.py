@@ -177,7 +177,10 @@ class PNG:
 			return zlib.crc32(self.data, zlib.crc32(self.cid)) == self.crc
 
 		def decode(self):
-			handler = getattr(Chunks, self.cname)
+			try:
+				handler = getattr(Chunks, self.cname)
+			except AttributeError:
+				return
 			chunk = handler.parse(self.png, self)
 			if not chunk.verify():
 				raise ChunkParseError("invalid chunk {}".format(chunk))
@@ -286,6 +289,9 @@ class Chunks:
 		def verify(self):
 			return (self.bit_depth == 1 or self.bit_depth % 2 == 0) and self.bit_depth in PNG.VALID_BIT_DEPTHS[self.color_type]
 
+		def __repr__(self):
+			return "{}: {}x{}#{} {} {} {} {}".format(self.__class__.__name__, self.height, self.width, self.bit_depth, self.color_type, self.compression, self.filter_type, self.interlace)
+
 	class PLTE(Base):
 		def __init__(self, palette, *args):
 			super().__init__(*args)
@@ -327,6 +333,9 @@ class Chunks:
 
 			self.gamma = gamma
 
+		def __repr__(self):
+			return "{}: {}".format(self.__class__.__name__, self.gamma)
+
 	class cHRM(Base):
 		STRUCT = struct.Struct(">8I")
 		DIVISOR = 100000
@@ -364,6 +373,9 @@ class Chunks:
 		def parse(self, png, chunk):
 			(name, rest) = chunk.data.split(b"\0", maxsplit=1)
 			return self(name, rest, chunk)
+
+		def __repr__(self):
+			return "{}: {}: {}".format(self.__class__.__name__, self.key, self.text)
 
 	class zTXt(tEXt):
 		@classmethod

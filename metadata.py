@@ -22,8 +22,7 @@ class FileType(Enum):
 
 
 def handle_png(file):
-	decodables = ["zTXt", "tEXt", "iTXt", "exIf", "eXIf", "zxIf", "zXIf"]
-	ignorables = ["IDAT", "IHDR", "IEND"]
+	text = ["zTXt", "tEXt", "iTXt"]
 
 	ret_chunks = []
 
@@ -35,13 +34,11 @@ def handle_png(file):
 				chunk = next(chunks)
 			except StopIteration:
 				break
-			if chunk.cname in decodables:
-				decoded = chunk.decode()
+			decoded = chunk.decode()
+			if decoded:
 				ret_chunks.append(decoded)
-				if decoded.key == "XML:com.adobe.xmp":
+				if chunk.cname == text and decoded.key == "XML:com.adobe.xmp":
 					xmp = etree.fromstring(decoded.text)
-			else:
-				ret_chunks.append(chunk)
 	except ParseError as e:
 		print("Failed on {}: {}".format(file, e.args[0]))
 		return
@@ -61,6 +58,21 @@ def guess_type_from_filename(file):
 
 	return FileType.UNKNOWN
 
+handlers = {
+	FileType.PNG: handle_png,
+	FileType.JFIF: handle_jfif,
+}
+
+def handle_file(file):
+	filetype = guess_type_from_filename(file)
+	if filetype == FileType.UNKNOWN:
+		return False
+	meta = handlers[filetype](file)
+	print("# {}".format(file))
+	if meta is not None:
+		pprint(meta)
+	return True
+
 def main():
 	import argparse
 	parser = argparse.ArgumentParser()
@@ -68,22 +80,14 @@ def main():
 	args = parser.parse_args()
 
 	root = Path(args.file).resolve()
-	if not root.is_dir():
-		raise Exception("NOT A DIR")
-
-	handlers = {
-		FileType.PNG: handle_png,
-		FileType.JFIF: handle_jfif,
-	}
+	if not root.is_dir() and root.is_file():
+		handle_file(root)
+	elif not root.exists():
+		raise Exception("u wot m8")
 
 	for file in root.glob("**/*"):
-		filetype = guess_type_from_filename(file)
-		if filetype == FileType.UNKNOWN:
+		if not handle_file(file):
 			continue
-		meta = handlers[filetype](file)
-		print("# {}".format(file))
-		if meta is not None:
-			pprint(meta)
 
 if __name__ == '__main__':
 	main()
