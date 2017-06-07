@@ -7,8 +7,8 @@ import struct
 
 from enum import Enum
 
-from util import Bunch
 from structio import BytesStructIO, Endianess
+from util import Bunch
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -211,6 +211,269 @@ class IFDTagType(Enum):
 	Unknown5112 = 0x5112
 
 
+class Orientation(Enum):
+	TopLeft = 1
+	TopRight = 2
+	BottomRight = 3
+	BottomLeft = 4
+	LeftTop = 5
+	RightTop = 6
+	RightBottom = 7
+	LeftBottom = 8
+
+
+class PhotometricInterpretation(Enum):
+	RGB = 2
+	YCbCr = 6
+
+
+class Compression(Enum):
+	Uncompressed = 1
+	JPEGThumbnail = 6
+
+
+class PlanarConfiguration(Enum):
+	Chunky = 1
+	Planar = 2
+
+
+class YCbCrSubSampling(Enum):
+	YCbCr422 = (2, 1)
+	YCbCr420 = (2, 2)
+
+	@classmethod
+	def parse(cls, values):
+		return cls(tuple(values))
+
+
+class YCbCrPositioning(Enum):
+	Centered = 1
+	Cosited = 2
+
+
+class ResolutionUnit(Enum):
+	Inches = 2
+	Centimeters = 3
+
+
+class FlashpixVersion(Enum):
+	One = b"0100"
+
+
+class ColorSpace(Enum):
+	sRGB = 1
+	Uncalibrated = 0xFFFF
+
+
+class ComponentsConfiguration(Enum):
+	Nonexistant = 0
+	Y = 1
+	Cb = 2
+	Cr = 3
+	R = 4
+	G = 5
+	B = 6
+
+	@classmethod
+	def parse(cls, values):
+		return [cls(i) for i in values]
+
+
+class ExposureProgram(Enum):
+	Undefined = 0
+	Manual = 1
+	Normal = 2
+	AperturePriority = 3
+	ShutterPriority = 4
+	Creative = 5
+	Action = 6
+	Portrait = 7
+	Landscape = 8
+
+
+class SensitivityType(Enum):
+	Unknown = 0
+	SOS = 1
+	REI = 2
+	ISOSpeed = 3
+	SOSREI = 4
+	SOSISOSpeed = 5
+	REIISOSpeed = 6
+	SOSREIISOSpeed = 7
+
+
+class MeteringMode(Enum):
+	Unknown = 0
+	Average = 1
+	CenterWeightedAverage = 2
+	Spot = 3
+	MultiSpot = 4
+	Pattern = 5
+	Partial = 6
+	Other = 255
+
+
+class LightSource(Enum):
+	Unknown = 0
+	Daylight = 1
+	Flouresecent = 2
+	Tungsten = 3
+	Flash = 4
+	FineWeather = 9
+	CloudyWeather = 10
+	Shade = 11
+	DaylightFlourescent = 12
+	DayWhiteFlourescent = 13
+	CoolWhiteFlourescent = 14
+	WhiteFlourescent = 15
+	WarmWhiteFlourescent = 161
+	StandardLightA = 17
+	StandardLightB = 18
+	StandardLight = 19
+	D55 = 20
+	D65 = 21
+	D75 = 22
+	D50 = 23
+	ISOStudioTungsten = 24
+	Other = 255
+
+
+class Flash(object):
+	"""
+	This IFDTag is a packed value, so nested enums here we come!
+	"""
+	class ReturnedLight(Enum):
+		NoFunction = 0
+		Reserved = 1
+		NotDetected = 2
+		Detected = 3
+
+	class Mode(Enum):
+		Unknown = 0
+		FlashFiring = 1
+		FlashSuppression = 2
+		Auto = 4
+
+	@classmethod
+	def parse(cls, value):
+		self = cls()
+		cls.fired = (value & 0b00000001 >> 0) == 1
+		cls.returned_light = cls.ReturnedLight((value & 0b00000110 >> 1))
+		cls.mode = cls.Mode((value & 0b00011000 >> 3))
+		cls.function = (value & 0b00100000 >> 5) == 0
+		cls.redeye = (value & 0b01000000 >> 6) == 1
+		return self
+
+
+class SensingMethod(Enum):
+	Undefined = 1
+	OnechipColorArea = 2
+	TwochipColorArea = 3
+	ThreechipColorArea = 4
+	ColorSequentialArea = 5
+	Trilinear = 7
+	ColorSequentialLinear = 8
+
+
+class FileSource(Enum):
+	Other = 0
+	TransparentScanner = 1
+	ReflexScanner = 2
+	DSC = 3
+
+
+class SceneType(Enum):
+	Photographed = 1
+
+
+class CustomRendered(Enum):
+	Normal = 0
+	Custom = 1
+
+
+class ExposureMode(Enum):
+	AutoExposure = 0
+	ManualExposure = 1
+	AutoBracket = 2
+
+
+class WhiteBalance(Enum):
+	Auto = 0
+	Manual = 1
+
+
+class SceneCaptureType(Enum):
+	Standard = 0
+	Landscape = 1
+	Portrait = 2
+	NightScene = 3
+
+
+class GainControl(Enum):
+	Nonexistant = 0
+	LowUp = 1
+	HighUp = 2
+	LowDown = 3
+	HighDown = 4
+
+
+class Contrast(Enum):
+	Normal = 0
+	Soft = 1
+	Hard = 2
+
+
+class Saturation(Enum):
+	Normal = 0
+	Low = 1
+	High = 2
+
+
+class Sharpness(Enum):
+	Normal = 0
+	Soft = 1
+	Hard = 2
+
+
+class SubjectDistanceRange(Enum):
+	Unknown = 0
+	Macro = 1
+	Close = 2
+	Distant = 3
+
+
+IFDTagType.type = {
+	IFDTagType.Orientation: Orientation,
+	IFDTagType.PhotometricInterpretation: PhotometricInterpretation,
+	IFDTagType.Compression: Compression,
+	IFDTagType.PlanarConfiguration: PlanarConfiguration,
+	IFDTagType.YCbCrSubSampling: YCbCrSubSampling.parse,
+	IFDTagType.YCbCrPositioning: YCbCrPositioning,
+	IFDTagType.ResolutionUnit: ResolutionUnit,
+	IFDTagType.FlashpixVersion: FlashpixVersion,
+	IFDTagType.ColorSpace: ColorSpace,
+	IFDTagType.ComponentsConfiguration: ComponentsConfiguration.parse,
+	IFDTagType.ExposureProgram: ExposureProgram,
+	IFDTagType.SensitivityType: SensitivityType,
+	IFDTagType.MeteringMode: MeteringMode,
+	IFDTagType.LightSource: LightSource,
+	IFDTagType.Flash: Flash.parse,
+	IFDTagType.FocalPlaneResolutionUnit: ResolutionUnit,
+	IFDTagType.SensingMethod: SensingMethod,
+	IFDTagType.FileSource: FileSource,
+	IFDTagType.SceneType: SceneType,
+	IFDTagType.CustomRendered: CustomRendered,
+	IFDTagType.ExposureMode: ExposureMode,
+	IFDTagType.WhiteBalance: WhiteBalance,
+	IFDTagType.SceneCaptureType: SceneCaptureType,
+	IFDTagType.GainControl: GainControl,
+	IFDTagType.Contrast: Contrast,
+	IFDTagType.Saturation: Saturation,
+	IFDTagType.Sharpness: Sharpness,
+	IFDTagType.SubjectDistanceRange: SubjectDistanceRange
+}
+
+
 class GPSTagType(Enum):
 	VersionID = 0x0
 	LatitudeRef = 0x1
@@ -244,6 +507,31 @@ class GPSTagType(Enum):
 	DateStamp = 0x1D
 	Differential = 0x1E
 	HPositioningError = 0x1F
+
+
+class GPSVersionID(object):
+	@classmethod
+	def parse(cls, values):
+		self = cls()
+		self.major = values[0]
+		self.minor = values[1]
+		self.patch = values[2]
+		self.revision = values[4]
+		return self
+
+
+class GPSDifferential(Enum):
+	"""
+	TODO: replace with bool even though spec says "Other = reserved"?
+	"""
+	Uncorrected = 0
+	Corrected = 1
+
+
+GPSTagType.type = {
+	GPSTagType.VersionID: GPSVersionID.parse,
+	GPSTagType.Differential: GPSDifferential
+}
 
 IFDTagType.IFDPointer = {
 	IFDTagType.ExifIFD: IFDTagType,
@@ -284,6 +572,8 @@ class IFDTag(Bunch):
 			raw.seek(self.offset)
 			self.read(raw)
 			raw.seek(old)
+		if self.tag in tag_type.type:
+			self.value = tag_type.type[self.tag](self.value)
 		return self
 
 	def read(self, raw):

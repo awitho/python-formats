@@ -1,16 +1,17 @@
 
 # coding=utf-8
 
+import sys
 import traceback
 
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 from pprint import pprint
 
 from lxml import etree
 
-from png import PNG, ParseError, CRCError
 from jfif import JFIF
+from png import PNG, ParseError, CRCError
 
 PNG.VERIFY = True
 
@@ -36,9 +37,10 @@ def handle_png(file):
 				break
 			decoded = chunk.decode()
 			if decoded:
-				ret_chunks.append(decoded)
-				if chunk.cname == text and decoded.key == "XML:com.adobe.xmp":
-					xmp = etree.fromstring(decoded.text)
+				if chunk.cname in text and decoded.key == "XML:com.adobe.xmp":
+					ret_chunks.append(etree.fromstring(decoded.text))
+				else:
+					ret_chunks.append(decoded)
 	except ParseError as e:
 		print("Failed on {}: {}".format(file, e.args[0]))
 		return

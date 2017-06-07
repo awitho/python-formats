@@ -1,19 +1,19 @@
 
 # coding=utf-8
 
-import math
-import struct
 import io
 import logging
+import math
+import struct
 
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 from pprint import pprint
 
 from exif import EXIF
 from photoshop import Resource as PhotoshopResource, ResourceType as PhotoshopResourceType, PhotoshopError
-from util import Bunch
 from structio import BytesStructIO
+from util import Bunch
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)

@@ -1,16 +1,16 @@
 
 # coding=utf-8
 
-import zlib
-import sys
 import pdb
 import struct
+import sys
+import zlib
 
 from enum import Enum
 from pathlib import Path
 
-from structio import BytesStructIO, Endianess
 from icc import ICCProfile
+from structio import BytesStructIO, Endianess
 
 
 class ParseError(Exception):
@@ -290,7 +290,7 @@ class Chunks:
 			return (self.bit_depth == 1 or self.bit_depth % 2 == 0) and self.bit_depth in PNG.VALID_BIT_DEPTHS[self.color_type]
 
 		def __repr__(self):
-			return "{}: {}x{}#{} {} {} {} {}".format(self.__class__.__name__, self.height, self.width, self.bit_depth, self.color_type, self.compression, self.filter_type, self.interlace)
+			return "{}: {}x{}#{} {} {} {} {}".format(self.__class__.__name__, self.width, self.height, self.bit_depth, self.color_type, self.compression, self.filter_type, self.interlace)
 
 	class PLTE(Base):
 		def __init__(self, palette, *args):
@@ -390,6 +390,9 @@ class Chunks:
 		def __init__(self, key, text, *args):
 			self.key = key.decode('latin-1')
 			self.profile = ICCProfile.parse(text)
+
+		def __repr__(self):
+			return "{}: {}: {}".format(self.__class__.__name__, self.key, self.profile)
 
 	class iTXt(Base):
 		def __init__(self, key, flag, method, language, translated, text):

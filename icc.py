@@ -76,8 +76,14 @@ class ICCProfile:
 		def __str__(self):
 			return str(self.__dict__)
 
+		def __repr__(self):
+			return str(self)
+
 	def __init__(self, header):
 		self.header = header
+
+	def __repr__(self):
+		return "{}".format(self.header)
 
 	@classmethod
 	def parse(self, data):
