@@ -672,23 +672,24 @@ class EXIF(Bunch):
 		count = 0
 		while True:
 			logger.debug("Reading IFD#{} @ {}".format(count, raw.tell()))
-			self.ifd[count] = IFD.from_structio(raw)
-			for tag in self.ifd[count].tags:
+			ifd = self.ifd[count] = IFD.from_structio(raw)
+			for (i, tag) in enumerate(ifd.tags):
 				if tag.tag in IFDTagType.IFDPointer:
 					logger.debug("Reading IFD['{}'] @ {}".format(tag.tag, tag.value))
 					raw.seek(tag.value)
 					self.ifd[tag.tag] = IFD.from_structio(raw, tag_type=IFDTagType.IFDPointer[tag.tag])
-			if 'next' not in self.ifd[count] or self.ifd[count].next == 0 or self.ifd[count].next >= len(raw.getvalue()):
+					del ifd.tags[i]  # remove tag from IFD as it's just a pointer and not useful to someone deep diving into exif data
+			if 'next' not in ifd or ifd.next == 0 or ifd.next >= len(raw.getvalue()):
 				break
 			infinite_loop = False
 			for i in self.ifd:
-				if self.ifd[count].next == self.ifd[i].offset:
+				if ifd.next == self.ifd[i].offset:
 					infinite_loop = True
 					break
 			if infinite_loop:
 				break
-			logger.debug("next IFD at {}".format(self.ifd[count].next))
-			raw.seek(self.ifd[count].next)
+			logger.debug("next IFD at {}".format(ifd.next))
+			raw.seek(ifd.next)
 			count += 1
 
 	@classmethod
