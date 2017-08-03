@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python3
 # coding=utf-8
 
 import datetime
@@ -94,3 +94,22 @@ class ICCProfile:
 		tag_count = data.read_uint()
 		print(tag_count)
 		return self(header)
+
+def main():
+	import argparse
+
+	from pathlib import Path
+
+	parser = argparse.ArgumentParser()
+	parser.add_argument("input")
+	args = parser.parse_args()
+	root = Path(args.input)
+	if not root.is_file():
+		return
+
+	with root.open("rb") as f:
+		icc = ICCProfile.parse(f.read())
+		print(icc.header)
+
+if __name__ == "__main__":
+	main()

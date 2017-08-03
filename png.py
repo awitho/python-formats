@@ -250,14 +250,14 @@ class CompressionMethod(Enum):
 
 class Chunks:
 	class Base:
-		def __init__(self, raw):
-			self.raw = raw
+		def __init__(self, chunk=None):
+			self.raw = chunk
 
 		@classmethod
 		def parse(self, png, chunk):
 			if chunk.length != self.STRUCT.size:
 				raise ChunkParseError("invalid chunk length for chunk {}".format(self.cname))
-			return self(*self.STRUCT.unpack(chunk.data), chunk)
+			return self(*self.STRUCT.unpack(chunk.data), chunk=chunk)
 
 		def verify(self):
 			return True
@@ -275,8 +275,8 @@ class Chunks:
 	class IHDR(Base):
 		STRUCT = struct.Struct(">2I5B")
 
-		def __init__(self, width, height, bit_depth, color_type, compression, filter_type, interlace, *args):
-			super().__init__(*args)
+		def __init__(self, width, height, bit_depth, color_type, compression, filter_type, interlace, **kwargs):
+			super().__init__(**kwargs)
 
 			self.width = width
 			self.height = height
@@ -293,8 +293,8 @@ class Chunks:
 			return "{}: {}x{}#{} {} {} {} {}".format(self.__class__.__name__, self.width, self.height, self.bit_depth, self.color_type, self.compression, self.filter_type, self.interlace)
 
 	class PLTE(Base):
-		def __init__(self, palette, *args):
-			super().__init__(*args)
+		def __init__(self, palette, **kwargs):
+			super().__init__(**kwargs)
 
 			self.palette = palette
 
@@ -302,11 +302,11 @@ class Chunks:
 		def parse(self, png, chunk):
 			if chunk.length % 3 != 0:
 				raise ChunkParseError("PLTE chunk length is not divisible by 3.")
-			return self([RGB8.unpack(chunk.data[i:i + 3]) for i in range(0, chunk.length, 3)], chunk)
+			return self([RGB8.unpack(chunk.data[i:i + 3]) for i in range(0, chunk.length, 3)], chunk=chunk)
 
 	class tRNS(Base):
-		def __init__(self, transparency, *args):
-			super().__init__(*args)
+		def __init__(self, transparency, **kwargs):
+			super().__init__(**kwargs)
 
 			self.transparency = transparency
 
@@ -315,21 +315,21 @@ class Chunks:
 			if png.meta.color_type == PNG.ColorType.GRAYSCALE:
 				if chunk.length != 2:
 					raise ChunkParseError("invalid length for tRNS with color type {}".format(png.meta.color_type))
-				return self(SHORT.unpack(chunk.data))
+				return self(SHORT.unpack(chunk.data), chunk=chunk)
 			elif png.meta.color_type == PNG.ColorType.RGB:
 				if chunk.length % 3 != 0:
 					raise ChunkParseError("invalid length for tRNS with color type {}".format(png.meta.color_type))
-				return self([RGB8.unpack(chunk.data[i:i + 3] for i in range(0, chunk.length, 3))])
+				return self([RGB8.unpack(chunk.data[i:i + 3] for i in range(0, chunk.length, 3))], chunk=chunk)
 			elif png.meta.color_type == PNG.ColorType.PALETTE:
-				return self([BYTE.unpack(chunk.data[i]) for i in range(chunk.length)])
+				return self([BYTE.unpack(chunk.data[i]) for i in range(chunk.length)], chunk=chunk)
 			else:
 				raise ChunkParseError("tRNS is an invalid chunk for color type {}".format(png.meta.color_type))
 
 	class gAMA(Base):
 		STRUCT = INT
 
-		def __init__(self, gamma, *args):
-			super().__init__(*args)
+		def __init__(self, gamma, **kwargs):
+			super().__init__(**kwargs)
 
 			self.gamma = gamma
 
@@ -340,8 +340,8 @@ class Chunks:
 		STRUCT = struct.Struct(">8I")
 		DIVISOR = 100000
 
-		def __init__(self, white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y, *args):
-			super().__init__(*args)
+		def __init__(self, white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y, **kwargs):
+			super().__init__(**kwargs)
 
 			self.white_x = white_x / self.DIVISOR
 			self.white_y = white_y / self.DIVISOR
@@ -355,16 +355,16 @@ class Chunks:
 	class sRGB(Base):
 		STRUCT = BYTE
 
-		def __init__(self, intent, *args):
-			super().__init__(*args)
+		def __init__(self, intent, **kwargs):
+			super().__init__(**kwargs)
 
 			if intent not in range(0, 3 + 1):
 				raise ChunkParseError("invalid intent for sRGB")
 			self.intent = intent
 
 	class tEXt(Base):
-		def __init__(self, key, text, *args):
-			super().__init__(*args)
+		def __init__(self, key, text, **kwargs):
+			super().__init__(**kwargs)
 
 			self.key = key.decode('latin-1')
 			self.text = text.decode('latin-1')
@@ -372,7 +372,7 @@ class Chunks:
 		@classmethod
 		def parse(self, png, chunk):
 			(name, rest) = chunk.data.split(b"\0", maxsplit=1)
-			return self(name, rest, chunk)
+			return self(name, rest, chunk=chunk)
 
 		def __repr__(self):
 			return "{}: {}: {}".format(self.__class__.__name__, self.key, self.text)
@@ -384,10 +384,12 @@ class Chunks:
 			method = CompressionMethod(BYTE.unpack(rest[:1])[0])
 			if method == CompressionMethod.DEFLATE:
 				data = zlib.decompress(rest[1:])
-			return self(name, data, chunk)
+			return self(name, data, chunk=chunk)
 
 	class iCCP(zTXt):
-		def __init__(self, key, text, *args):
+		def __init__(self, key, text, **kwargs):
+			super().__init__(**kwargs)
+
 			self.key = key.decode('latin-1')
 			self.profile = ICCProfile.parse(text)
 
@@ -395,7 +397,9 @@ class Chunks:
 			return "{}: {}: {}".format(self.__class__.__name__, self.key, self.profile)
 
 	class iTXt(Base):
-		def __init__(self, key, flag, method, language, translated, text):
+		def __init__(self, key, flag, method, language, translated, text, **kwargs):
+			super().__init__(**kwargs)
+
 			self.key = key
 			self.flag = flag
 			self.method = method
