@@ -9,8 +9,8 @@ import zlib
 from enum import Enum
 from pathlib import Path
 
-from icc import ICCProfile
-from structio import BytesStructIO, Endianess
+from formats.icc import ICCProfile
+from formats.structio import BytesStructIO, Endianess
 
 
 class ParseError(Exception):
@@ -107,12 +107,7 @@ class PNG:
 		'tpNG',  # 000000004A80291F crcs to 474C4433 or in ASCII "GLD3"
 
 		# OLE Embed, Unsure as to origin
-		'cpIp',
-
-		# Corrupted IEND
-		'IENT',
-		'IEN5',
-		'IENq'
+		'cpIp'
 	])
 
 	FIFTH_BIT = 0b00100000
@@ -224,6 +219,9 @@ class PNG:
 			if PNG.VERIFY and not chunk.verify():
 				raise CRCError("bad crc {}".format(chunk.cname))
 
+			if chunk.cname == "IHDR":
+				self.meta = chunk.decode()
+
 			yield chunk
 
 			if chunk.cname == 'IEND':
@@ -244,8 +242,29 @@ class PNG:
 			print("{} has trailing data!".format(self.file))
 
 
-class CompressionMethod(Enum):
+class Compression(Enum):
 	DEFLATE = 0
+
+
+class Filter(Enum):
+	ADAPTIVE = 0
+
+
+class Interlace(Enum):
+	NONE = 0
+	ADAM7 = 1
+
+
+class Unit(Enum):
+	UNKNOWN = 0
+	METER = 1
+
+
+class Intent(Enum):
+	PERCEPTUAL = 0
+	RELATIVE_COLORMETRIC = 1
+	SATURATION = 2
+	ABSOLUTE_COLORMETRIC = 3
 
 
 class Chunks:
@@ -282,9 +301,9 @@ class Chunks:
 			self.height = height
 			self.bit_depth = bit_depth
 			self.color_type = PNG.ColorType(color_type)
-			self.compression = compression
-			self.filter_type = filter_type
-			self.interlace = interlace
+			self.compression = Compression(compression)
+			self.filter_type = Filter(filter_type)
+			self.interlace = Interlace(interlace)
 
 		def verify(self):
 			return (self.bit_depth == 1 or self.bit_depth % 2 == 0) and self.bit_depth in PNG.VALID_BIT_DEPTHS[self.color_type]
@@ -315,13 +334,13 @@ class Chunks:
 			if png.meta.color_type == PNG.ColorType.GRAYSCALE:
 				if chunk.length != 2:
 					raise ChunkParseError("invalid length for tRNS with color type {}".format(png.meta.color_type))
-				return self(SHORT.unpack(chunk.data), chunk=chunk)
+				return self(SHORT.unpack(chunk.data), chunk)
 			elif png.meta.color_type == PNG.ColorType.RGB:
 				if chunk.length % 3 != 0:
 					raise ChunkParseError("invalid length for tRNS with color type {}".format(png.meta.color_type))
-				return self([RGB8.unpack(chunk.data[i:i + 3] for i in range(0, chunk.length, 3))], chunk=chunk)
+				return self([RGB8.unpack(chunk.data[i:i + 3] for i in range(0, chunk.length, 3))], chunk)
 			elif png.meta.color_type == PNG.ColorType.PALETTE:
-				return self([BYTE.unpack(chunk.data[i]) for i in range(chunk.length)], chunk=chunk)
+				return self([BYTE.unpack(chunk.data[i:i + 1]) for i in range(chunk.length)], chunk)
 			else:
 				raise ChunkParseError("tRNS is an invalid chunk for color type {}".format(png.meta.color_type))
 
@@ -360,7 +379,8 @@ class Chunks:
 
 			if intent not in range(0, 3 + 1):
 				raise ChunkParseError("invalid intent for sRGB")
-			self.intent = intent
+			self.intent = Intent(intent)
+
 
 	class tEXt(Base):
 		def __init__(self, key, text, **kwargs):
@@ -381,17 +401,17 @@ class Chunks:
 		@classmethod
 		def parse(self, png, chunk):
 			(name, rest) = chunk.data.split(b"\0", maxsplit=1)
-			method = CompressionMethod(BYTE.unpack(rest[:1])[0])
-			if method == CompressionMethod.DEFLATE:
+			method = Compression(BYTE.unpack(rest[:1])[0])
+			if method == Compression.DEFLATE:
 				data = zlib.decompress(rest[1:])
 			return self(name, data, chunk=chunk)
 
 	class iCCP(zTXt):
-		def __init__(self, key, text, **kwargs):
-			super().__init__(**kwargs)
-
+		def __init__(self, key, text, *args):
+			Chunks.Base.__init__(self, *args)
 			self.key = key.decode('latin-1')
 			self.profile = ICCProfile.parse(text)
+			self.data = text
 
 		def __repr__(self):
 			return "{}: {}: {}".format(self.__class__.__name__, self.key, self.profile)
@@ -410,11 +430,105 @@ class Chunks:
 		@classmethod
 		def parse(self, png, chunk):
 			data = BytesStructIO(chunk.data)
-			itxt = self(data.read_string().decode('utf-8'), data.read_bool(), CompressionMethod(data.read_ubyte()), data.read_string().decode('utf-8'), data.read_string().decode('utf-8'), data.read())
-			if itxt.flag and itxt.method == CompressionMethod.DEFLATE:
+			itxt = self(data.read_string().decode('utf-8'), data.read_bool(), Compression(data.read_ubyte()), data.read_string().decode('utf-8'), data.read_string().decode('utf-8'), data.read())
+			if itxt.flag and itxt.method == Compression.DEFLATE:
 				itxt.text = zlib.decompress(itxt.text)
 			itxt.text = itxt.text.decode('utf-8')
 			return itxt
+
+	class bKGD(Base):
+		def __init__(self, background, *args):
+			super().__init__(*args)
+
+			self.background = background
+
+		@classmethod
+		def parse(self, png, chunk):
+			if png.meta.color_type == PNG.ColorType.PALETTE:
+				return self(BYTE.unpack(chunk.data), chunk)
+			elif png.meta.color_type == PNG.ColorType.GRAYSCALE or png.meta.color_type == PNG.ColorType.LA:
+				return self((SHORT.unpack(chunk.data[0:2])[0], SHORT.unpack(chunk.data[2:4])[0]), chunk)
+			elif png.meta.color_type == PNG.ColorType.RGB or png.meta.color_type == PNG.ColorType.RGBA:
+				return self((SHORT.unpack(chunk.data[0:2])[0], SHORT.unpack(chunk.data[2:4])[0], SHORT.unpack(chunk.data[4:6])[0]), chunk)
+			else:
+				raise ChunkParseError("invalid chunk for color type {}".format(png.meta.color_type))
+
+	class pHYs(Base):
+		STRUCT = struct.Struct(">IIB")
+
+		def __init__(self, ppu_x, ppu_y, unit, *args):
+			super().__init__(*args)
+
+			self.ppu_x = ppu_x
+			self.ppu_y = ppu_y
+			self.unit = Unit(unit)
+
+	class sBIT(Base):
+		def __init__(self, sbits, *args):
+			super().__init__(*args)
+
+			self.sbits = sbits
+
+		@classmethod
+		def parse(self, png, chunk):
+			if png.meta.color_type == PNG.ColorType.GRAYSCALE:
+				return self(BYTE.unpack(chunk.data)[0], chunk)
+			elif png.meta.color_type == PNG.ColorType.RGB or png.meta.color_type == PNG.ColorType.PALETTE:
+				return self((BYTE.unpack(chunk.data[0:1])[0], BYTE.unpack(chunk.data[1:2])[0], BYTE.unpack(chunk.data[2:3])[0]), chunk)
+			elif png.meta.color_type == PNG.ColorType.LA:
+				return self((BYTE.unpack(chunk.data[0:1])[0], BYTE.unpack(chunk.data[1:2])[0]), chunk)
+			elif png.meta.color_type == PNG.ColorType.RGBA:
+				return self((BYTE.unpack(chunk.data[0:1])[0], BYTE.unpack(chunk.data[1:2])[0], BYTE.unpack(chunk.data[2:3])[0], BYTE.unpack(chunk.data[3:4])[0]), chunk)
+
+	class sPLT(Base):
+		def __init__(self, name, depth, palette, *args):
+			super().__init__(*args)
+
+			self.name = name
+			self.depth = depth
+			self.palette = palette
+
+		@classmethod
+		def parse(self, png, chunk):
+			name, rest = chunk.data.split(b"\0", maxsplit=1)
+			name = name.decode("latin-1")
+			depth = BYTE.unpack(rest[0:1])
+			rest = rest[1:]
+
+			palette = []
+			if depth == 8:
+				if len(rest) % 6 != 0:
+					raise ChunkParseError("invalid length for sPLT")
+
+				for i in range(rest // 6):
+					dat = rest[i:i+6]
+
+					palette.append((
+						BYTE.unpack(dat[0:1])[0],  # r
+						BYTE.unpack(dat[1:2])[0],  # g
+						BYTE.unpack(dat[2:3])[0],  # b
+						BYTE.unpack(dat[3:4])[0],  # a
+						SHORT.unpack(dat[4:6])[0], # freq
+					))
+			elif depth == 16:
+				if len(rest) % 10 != 0:
+					raise ChunkParseError("invalid length for sPLT")
+
+				for i in range(rest // 10):
+					dat = rest[i:i+10]
+
+					palette.append((
+						SHORT.unpack(dat[0:2])[0],  # r
+						SHORT.unpack(dat[2:4])[0],  # g
+						SHORT.unpack(dat[4:6])[0],  # b
+						SHORT.unpack(dat[6:8])[0],  # a
+						SHORT.unpack(dat[8:10])[0], # freq
+					))
+			else:
+				raise ChunkParseError("invalid bit depth for sPLT {}".format(depth))
+
+			return self(name, depth, palette, chunk)
+
 
 
 UNKNOWN_TAGS = set([
@@ -448,12 +562,13 @@ def main():
 			except StopIteration:
 				break
 			print(chunk)
-			if chunk.cname == "tEXt":
+			if chunk.cname == "IHDR" or chunk.cname == "tEXt" or chunk.cname == "sRGB" or chunk.cname == "gAMA" or chunk.cname == "pHYs" or chunk.cname == "cHRM" or chunk.cname == "bKGD":
 				print(chunk.decode())
 	except AttributeError:
+		traceback.print_exc()
 		return
 	except ParseError as e:
-		print("Failed on {}: {}".format(file, e.args[0]))
+		print("Failed on {}: {}".format(args.file, e.args[0]))
 		return
 	finally:
 		png.close()

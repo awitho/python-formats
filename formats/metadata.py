@@ -11,10 +11,27 @@ from pprint import pprint
 from lxml import etree
 
 from jfif import JFIF
-from png import PNG, ParseError, CRCError
+from exif import IFDTagType
+from png import PNG, ParseError, CRCError, Chunks
 
 PNG.VERIFY = True
 
+EXIF_TAGS_TO_NAMESPACE = {
+	# IFD0
+	IFDTagType.DateTime: "exif date",
+	IFDTagType.ImageDescription: "exif description",
+	IFDTagType.Make: "exif make",
+	IFDTagType.Model: "exif model",
+	IFDTagType.Software: "exif software",
+	IFDTagType.Artist: "exif artist",
+	IFDTagType.Copyright: "exif copyright",
+	# ExifIFD
+	IFDTagType.MakerNote: "exif maker note",
+	IFDTagType.UserComment: "exif comment",
+	IFDTagType.DateTimeOriginal: "exif date taken",
+	IFDTagType.DateTimeDigitized: "exif date digitized",
+	IFDTagType.CameraOwnerName: "exif owner name",
+}
 
 class FileType(Enum):
 	UNKNOWN = 0
@@ -35,7 +52,13 @@ def handle_png(file):
 				chunk = next(chunks)
 			except StopIteration:
 				break
-			decoded = chunk.decode()
+
+			try:
+				decoded = chunk.decode()
+			except:
+				print("Skipping {} chunk due to\n{}".format(chunk.cname, traceback.format_exc()))
+				continue
+
 			if decoded:
 				if chunk.cname in text and decoded.key == "XML:com.adobe.xmp":
 					ret_chunks.append(etree.fromstring(decoded.text))
@@ -69,8 +92,8 @@ def handle_file(file):
 	filetype = guess_type_from_filename(file)
 	if filetype == FileType.UNKNOWN:
 		return False
-	meta = handlers[filetype](file)
 	print("# {}".format(file))
+	meta = handlers[filetype](file)
 	if meta is not None:
 		pprint(meta)
 	return True

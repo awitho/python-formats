@@ -5,9 +5,9 @@ import io
 
 from enum import Enum
 
-from iim import IIM, IIMError
-from structio import BytesStructIO, Endianess
-from util import Bunch
+from formats.iim import IIM, IIMError
+from formats.structio import BytesStructIO, Endianess
+from formats.util import Bunch
 
 
 class PhotoshopError(Exception):

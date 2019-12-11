@@ -110,7 +110,8 @@ class StructIO(io.RawIOBase):
 			if c == b'\x00':
 				end = self.tell() - 1
 				break
-		return self.getvalue()[start:end]
+		self.seek(start)
+		return self.read((end - start) + 1)[:-1] #self.getvalue()[start:end]
 
 	def read_string_len(self, strlen, codec="utf-8"):
 		return self.read(strlen).replace("\x00", "").decode(codec, errors='replace')
@@ -149,5 +150,5 @@ class FileStructIO(io.FileIO, StructIO):
 	def __init__(self, *args, **kwargs):
 		# sigh...
 		# please use super()
-		io.FileIO.__init__(self, *args, **kwargs)
+		io.FileIO.__init__(self, *args)
 		StructIO.__init__(self, *args, **kwargs)

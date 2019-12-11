@@ -7,8 +7,9 @@ import struct
 
 from enum import Enum
 
-from structio import BytesStructIO, Endianess
-from util import Bunch
+from formats.structio import BytesStructIO, Endianess
+from formats.util import Bunch
+
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -199,6 +200,12 @@ class IFDTagType(Enum):
 	Rating = 0x4746
 	RatingPercent = 0x4749
 	PageName = 0x11D
+	## InteropIFD related
+	InteropIndex = 0x1
+	InteropVersion = 0x2
+	RelatedImageFileFormat = 0x1000
+	RelatedImageWidth = 0x1001
+	RelatedImageHeight = 0x1002
 	# Unknown but encountered
 	Unknown301 = 0x301
 	Unknown302 = 0x302
@@ -212,6 +219,8 @@ class IFDTagType(Enum):
 
 
 class Orientation(Enum):
+	Unknown = 0
+	# ^ this is not defined by the standard but was encountered in the wild
 	TopLeft = 1
 	TopRight = 2
 	BottomRight = 3
@@ -224,12 +233,56 @@ class Orientation(Enum):
 
 class PhotometricInterpretation(Enum):
 	RGB = 2
+	# this is not defined by the standard... but once again was encountered in the wild
+	Undefined = 5
 	YCbCr = 6
 
 
 class Compression(Enum):
+	# Defined by standard
 	Uncompressed = 1
 	JPEGThumbnail = 6
+	# Obtained from ExifTool doc, it's probably mostly Photoshop stuff
+	# really what is all this fucking garbage
+	CCITT1D = 2
+	T4Group3Fax = 3
+	T6Group4Fax = 4
+	LZW = 5
+	JPEG1 = 7
+	AdobeDeflate = 8
+	JBIGBlackAndWhite = 9
+	JBIGColor = 10
+	JPEG2 = 99 # ?
+	Kodak262 = 262 # really?
+	Next = 32766
+	SonyARWCompressed = 32767
+	PackedRAW = 32769
+	SamsungSRWCompressed = 32770
+	CCIRLEW = 32771
+	SamsungSRWCompressed2 = 32772
+	PackBits = 32773
+	Thunderscan = 32809
+	KodakKDCCompressed = 32867
+	IT8CTPAD = 32895
+	IT8LW = 32896
+	IT8MP = 32897
+	IT8BL = 32898
+	PixalFilm = 32908
+	PixalLog = 32909
+	Deflate = 32946
+	DCS = 32947
+	JBIG = 34661
+	SGILog = 34676
+	SGILog24 = 34677
+	JPEG2000 = 34712
+	NikonNEFCompressed = 34713
+	JBIG2TIFFFX = 34715
+	MDIBinaryLevelCodec = 34718
+	MDIProgressiveTransformCodec = 34719
+	MDIVector = 34720
+	LossyJPEG = 34892
+	KodakDCRCompressed = 65000
+	PentaxPEFCompressed = 65535
 
 
 class PlanarConfiguration(Enum):
@@ -352,7 +405,7 @@ class Flash(object):
 		Unknown = 0
 		FlashFiring = 1
 		FlashSuppression = 2
-		Auto = 4
+		Auto = 3
 
 	@classmethod
 	def parse(cls, value):
@@ -376,14 +429,14 @@ class SensingMethod(Enum):
 
 
 class FileSource(Enum):
-	Other = 0
-	TransparentScanner = 1
-	ReflexScanner = 2
-	DSC = 3
+	Other = b"\x00"
+	TransparentScanner = b"\x01"
+	ReflexScanner = b"\x02"
+	DSC = b"\x03"
 
 
 class SceneType(Enum):
-	Photographed = 1
+	Photographed = b"\x01"
 
 
 class CustomRendered(Enum):
@@ -557,7 +610,7 @@ class IFDTag(Bunch):
 		try:
 			self.type = Type(raw.read_ushort())
 		except ValueError:
-			logger.debug("WARNING: Tag had invalid type pretending it's UNDEFINED.")
+			logger.warning("Tag had invalid type pretending it's UNDEFINED.")
 			self.type = Type.UNDEFINED
 
 		self.count = raw.read_uint()
@@ -573,7 +626,10 @@ class IFDTag(Bunch):
 			self.read(raw)
 			raw.seek(old)
 		if self.tag in tag_type.type:
-			self.value = tag_type.type[self.tag](self.value)
+			try:
+				self.value = tag_type.type[self.tag](self.value)
+			except ValueError as e:
+				logger.warning("Failed to fully parse {} tag due to {}".format(self.tag, e))
 		return self
 
 	def read(self, raw):
@@ -677,7 +733,15 @@ class EXIF(Bunch):
 				if tag.tag in IFDTagType.IFDPointer:
 					logger.debug("Reading IFD['{}'] @ {}".format(tag.tag, tag.value))
 					raw.seek(tag.value)
-					self.ifd[tag.tag] = IFD.from_structio(raw, tag_type=IFDTagType.IFDPointer[tag.tag])
+					p = self.ifd[tag.tag] = IFD.from_structio(raw, tag_type=IFDTagType.IFDPointer[tag.tag])
+
+					for (j, tag) in enumerate(p.tags):
+						# TODO: get rid of this nested duplication, loop using an array and push onto it an unfilled IFD, concurrent modification exception?
+						if tag.tag in IFDTagType.IFDPointer:
+							raw.seek(tag.value)
+							self.ifd[tag.tag] = IFD.from_structio(raw, tag_type=IFDTagType.IFDPointer[tag.tag])
+							del p.tags[j]
+
 					del ifd.tags[i]  # remove tag from IFD as it's just a pointer and not useful to someone deep diving into exif data
 			if 'next' not in ifd or ifd.next == 0 or ifd.next >= len(raw.getvalue()):
 				break

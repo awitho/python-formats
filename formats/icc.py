@@ -4,7 +4,7 @@
 import datetime
 import struct
 
-from structio import BytesStructIO
+from formats.structio import BytesStructIO
 
 
 class ICCException(Exception):
@@ -88,6 +88,7 @@ class ICCProfile:
 	@classmethod
 	def parse(self, data):
 		if data[36:40] != ICCProfile.MAGIC:
+			print(data[0:128])
 			raise ICCParseException("not an ICC profile?")
 		data = BytesStructIO(data)
 		header = ICCProfile.Header.parse(data.read(128))
@@ -95,21 +96,19 @@ class ICCProfile:
 		print(tag_count)
 		return self(header)
 
+
 def main():
 	import argparse
+	import traceback
 
 	from pathlib import Path
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("input")
+	parser.add_argument("file")
 	args = parser.parse_args()
-	root = Path(args.input)
-	if not root.is_file():
-		return
-
-	with root.open("rb") as f:
+	with open(args.file, "rb") as f:
 		icc = ICCProfile.parse(f.read())
-		print(icc.header)
+		print(icc)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	main()

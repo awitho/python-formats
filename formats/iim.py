@@ -3,7 +3,8 @@
 
 from enum import Enum
 
-from util import Bunch
+from formats.util import Bunch
+
 
 class IIMError(Exception):
 	pass
